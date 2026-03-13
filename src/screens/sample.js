@@ -1,68 +1,39 @@
+// Sample.js
 import React, { useState } from 'react';
 import { SafeAreaView, View, Text, Button, Image, Linking, StyleSheet, Alert } from 'react-native';
-import { authorize } from 'react-native-app-auth';
-import axios from 'axios';
-import { Client_ID } from '@env';
+import { loginToSpotify, getSpotifyProfile } from '../services/spotifyAuth';
+import { getSpotifyProfile } from '../services/getSpotifyProfile';
+import {triggerSpotifyPlayback} from '../services/trackPlayer';
 
-const CLIENT_ID = Client_ID;
-
-const spotifyAuthConfig = {
-  clientId: CLIENT_ID,
-  redirectUrl: 'my-spotify-app://callback',
-  // 1. ADDED 'user-modify-playback-state' so we have permission to play music
-  scopes: ['user-read-private', 'user-read-email', 'user-modify-playback-state'],
-  serviceConfiguration: {
-    authorizationEndpoint: 'https://accounts.spotify.com/authorize',
-    tokenEndpoint: 'https://accounts.spotify.com/api/token',
-  },
-};
 
 const Sample = () => {
   const [profile, setProfile] = useState(null);
-  // 2. ADDED token state to store the access token for later use
   const [token, setToken] = useState(null);
 
-  const authenticate = async () => {
+  const handleAuthenticate = async () => {
     try {
-      const result = await authorize(spotifyAuthConfig);
+      // 1. Get the token from the service
+      const accessToken = await loginToSpotify();
       
-      if (result.accessToken) {
-        setToken(result.accessToken); // Save the token
-        fetchProfile(result.accessToken);
+      if (accessToken) {
+        setToken(accessToken); 
+        
+        // 2. Fetch the profile using the new token
+        const profileData = await getSpotifyProfile(accessToken);
+        setProfile(profileData);
       }
     } catch (error) {
       console.log('Authentication Error:', error);
     }
   };
 
-  const fetchProfile = async (accessToken) => {
-    try {
-      const response = await axios.get("https://api.spotify.com/v1/me", {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      });
-      setProfile(response.data);
-    } catch (error) {
-      console.log('Fetch Profile Error:', error.response?.data || error.message);
-    }
-  };
-
-  // 3. ADDED function to play the specific track
   const playSong = async () => {
     try {
-      await axios.put(
-        'https://api.spotify.com/v1/me/player/play',
-        {
-          uris: ['spotify:track:0HAciULA3lNbyp0kCBrJnC'] // The track you requested
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
+      await triggerSpotifyPlayback(token);
       console.log('Playing song!');
     } catch (error) {
       console.log('Play Song Error:', error.response?.data || error.message);
       
-      // If the user doesn't have an active Spotify session open, the API throws a 404
       if (error.response?.status === 404) {
         Alert.alert(
           "No Active Device", 
@@ -77,7 +48,7 @@ const Sample = () => {
       <Text style={styles.title}>Display your Spotify profile data</Text>
       
       {!profile ? (
-        <Button title="Log in with Spotify" onPress={authenticate} />
+        <Button title="Log in with Spotify" onPress={handleAuthenticate} />
       ) : (
         <View style={styles.profileSection}>
           <Text style={styles.header}>Logged in as {profile.display_name}</Text>
@@ -98,7 +69,6 @@ const Sample = () => {
             </Text>
           </View>
 
-          {/* 4. ADDED Button to play the song */}
           <View style={styles.buttonSpacer}>
             <Button title="Play Song" color="#1DB954" onPress={playSong} />
           </View>

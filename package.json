@@ -15,8 +15,7 @@
     "react": "19.2.3",
     "react-native": "0.84.1",
     "react-native-app-auth": "^8.1.0",
-    "react-native-safe-area-context": "^5.5.2",
-    "react-native-track-player": "^4.1.2"
+    "react-native-safe-area-context": "^5.5.2"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
