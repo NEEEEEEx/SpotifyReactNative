@@ -4,6 +4,21 @@ This is a new [**React Native**](https://reactnative.dev) project, bootstrapped 
 
 > **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
 
+## Configure environment variables (.env)
+
+This project uses [react-native-dotenv](https://github.com/goatandsheep/react-native-dotenv) to inject build-time values from a `.env` file into the JavaScript bundle.
+
+1. Create a file named `.env` at the root of this project (next to `package.json`).
+2. Add the variables your app needs. At minimum, set your Spotify client ID:
+
+```env
+Client_ID=YOUR_SPOTIFY_CLIENT_ID
+```
+
+> ✅ **Tip:** Create a Spotify app in the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard/applications) and set its **Redirect URI** to `my-spotify-app://callback` (this matches the value used in `src/screens/sample.js`).
+
+3. Restart Metro if it is already running so it picks up the new env variables.
+
 ## Step 1: Start Metro
 
 First, you will need to run **Metro**, the JavaScript build tool for React Native.
@@ -66,7 +81,7 @@ This is one way to run your app — you can also build it directly from Android 
 
 Now that you have successfully run the app, let's make changes!
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+Open `App.jsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
 
 When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
 
