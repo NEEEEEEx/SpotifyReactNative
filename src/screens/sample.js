@@ -1,130 +1,104 @@
-// Sample.js
 import React, { useState } from 'react';
-import { SafeAreaView, View, Text, Button, Image, Linking, StyleSheet, Alert } from 'react-native';
+import { SafeAreaView, View, Text, Button, FlatList, TouchableOpacity, Image, StyleSheet, Alert } from 'react-native';
 import { loginToSpotify } from '../services/spotifyAuth';
-import { getSpotifyProfile } from '../services/getSpotifyProfile';
-import {triggerSpotifyPlayback} from '../services/trackPlayer';
-
+import { getRecentlyPlayed } from '../services/getRecentlyPlayed';
+import { getYoutubeId } from '../services/trackPlayer';
+import YoutubePlayer from "react-native-youtube-iframe";
 
 const Sample = () => {
-  const [profile, setProfile] = useState(null);
   const [token, setToken] = useState(null);
+  const [tracks, setTracks] = useState([]);
+  const [playing, setPlaying] = useState(false);
+  const [videoId, setVideoId] = useState(null);
 
-  const handleAuthenticate = async () => {
+  const handleLogin = async () => {
     try {
-      // 1. Get the token from the service
       const accessToken = await loginToSpotify();
-      
       if (accessToken) {
-        setToken(accessToken); 
-        
-        // 2. Fetch the profile using the new token
-        const profileData = await getSpotifyProfile(accessToken);
-        setProfile(profileData);
+        setToken(accessToken);
+        const recentTracks = await getRecentlyPlayed(accessToken);
+        setTracks(recentTracks);
       }
     } catch (error) {
-      console.log('Authentication Error:', error);
+      console.log('Login Error:', error);
     }
   };
 
-  const playSong = async () => {
-    try {
-      await triggerSpotifyPlayback(token);
-      console.log('Playing song!');
-    } catch (error) {
-      console.log('Play Song Error:', error.response?.data || error.message);
-      
-      if (error.response?.status === 404) {
-        Alert.alert(
-          "No Active Device", 
-          "Please open the Spotify app on your phone or computer first so the API has a device to play on."
-        );
-      }
+  const playTrack = async (trackName, artistName) => {
+    setPlaying(false); // Stop current song
+    const id = await getYoutubeId(trackName, artistName);
+    
+    if (id) {
+      setVideoId(id);
+      setPlaying(true);
+    } else {
+      Alert.alert("Error", "Could not find a stream for this song.");
     }
   };
+
+  const renderTrackItem = ({ item }) => (
+    <TouchableOpacity 
+      style={styles.trackItem} 
+      onPress={() => playTrack(item.name, item.artist)}
+    >
+      <Image source={{ uri: item.artwork }} style={styles.albumArt} />
+      <View>
+        <Text style={styles.trackName}>{item.name}</Text>
+        <Text style={styles.artistName}>{item.artist}</Text>
+      </View>
+    </TouchableOpacity>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Display your Spotify profile data</Text>
-      
-      {!profile ? (
-        <Button title="Log in with Spotify" onPress={handleAuthenticate} />
+      {!token ? (
+        <View style={styles.center}>
+          <Text style={styles.title}>Spotify Vanilla</Text>
+          <Button title="Login with Spotify" color="#1DB954" onPress={handleLogin} />
+        </View>
       ) : (
-        <View style={styles.profileSection}>
-          <Text style={styles.header}>Logged in as {profile.display_name}</Text>
-          
-          {profile.images && profile.images.length > 0 ? (
-            <Image source={{ uri: profile.images[0].url }} style={styles.avatar} />
-          ) : (
-            <Text>(no profile image)</Text>
-          )}
-          
-          <View style={styles.infoList}>
-            <Text style={styles.infoText}>User ID: {profile.id}</Text>
-            <Text style={styles.infoText}>Email: {profile.email}</Text>
-            <Text 
-              style={styles.link} 
-              onPress={() => Linking.openURL(profile.external_urls.spotify)}>
-              Open Spotify Profile
-            </Text>
-          </View>
-
-          <View style={styles.buttonSpacer}>
-            <Button title="Play Song" color="#1DB954" onPress={playSong} />
-          </View>
-
+        <View style={{ flex: 1 }}>
+          <FlatList
+            data={tracks}
+            keyExtractor={(item, index) => item.id + index.toString()}
+            renderItem={renderTrackItem}
+            ListHeaderComponent={
+              <View style={styles.headerContainer}>
+                <Text style={styles.header}>Recently Played</Text>
+                <Button title="Stop Playback" color="#ff4444" onPress={() => setPlaying(false)} />
+              </View>
+            }
+          />
         </View>
       )}
+
+      {/* THE HIDDEN PLAYER BRIDGE */}
+      <View style={styles.hiddenContainer}>
+        <YoutubePlayer
+          height={1}
+          width={1}
+          play={playing}
+          videoId={videoId}
+          onChangeState={(state) => {
+            if (state === "ended") setPlaying(false);
+          }}
+        />
+      </View>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-    backgroundColor: '#fff',
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 40,
-  },
-  profileSection: {
-    alignItems: 'center',
-  },
-  header: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 15,
-  },
-  avatar: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    marginBottom: 20,
-  },
-  infoList: {
-    alignItems: 'flex-start',
-    width: '100%',
-    paddingHorizontal: 20,
-  },
-  infoText: {
-    fontSize: 16,
-    marginBottom: 10,
-  },
-  link: {
-    fontSize: 16,
-    color: '#1DB954',
-    textDecorationLine: 'underline',
-    marginTop: 10,
-  },
-  buttonSpacer: {
-    marginTop: 30,
-    width: '80%',
-  }
+  container: { flex: 1, backgroundColor: '#121212' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  title: { fontSize: 24, color: 'white', fontWeight: 'bold', marginBottom: 20 },
+  headerContainer: { padding: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  header: { fontSize: 22, color: 'white', fontWeight: 'bold' },
+  trackItem: { flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 10, alignItems: 'center' },
+  albumArt: { width: 50, height: 50, marginRight: 15, borderRadius: 4 },
+  trackName: { color: 'white', fontSize: 16, fontWeight: '600' },
+  artistName: { color: '#b3b3b3', fontSize: 14 },
+  hiddenContainer: { position: 'absolute', bottom: 0, opacity: 0 }
 });
 
 export default Sample;
