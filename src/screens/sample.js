@@ -1,7 +1,7 @@
 // Sample.js
 import React, { useState } from 'react';
 import { SafeAreaView, View, Text, Button, Image, Linking, StyleSheet, Alert } from 'react-native';
-import { loginToSpotify, getSpotifyProfile } from '../services/spotifyAuth';
+import { loginToSpotify } from '../services/spotifyAuth';
 import { getSpotifyProfile } from '../services/getSpotifyProfile';
 import {triggerSpotifyPlayback} from '../services/trackPlayer';
 
