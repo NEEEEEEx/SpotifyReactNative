@@ -18,7 +18,8 @@
     "react-native-app-auth": "^8.1.0",
     "react-native-dotenv": "^3.4.11",
     "react-native-safe-area-context": "^5.5.2",
-    "react-native-webview": "^13.16.1"
+    "react-native-webview": "^13.16.1",
+    "react-native-youtube-iframe": "^2.4.1"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
