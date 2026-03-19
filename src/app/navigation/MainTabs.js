@@ -19,6 +19,7 @@ export const MainTabs = () => (
         borderTopColor: '#F3F4F6',
         paddingBottom: 4,
         height: 58,
+        marginBottom: 50,
       },
       // tabBarIcon: ({ color, size, route }) => {
       //   const icons = { Home: 'home', Search: 'search', Library: 'book' };
