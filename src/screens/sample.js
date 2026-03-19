@@ -125,6 +125,8 @@ const Sample = () => {
                 </html>
               ` 
             }}
+            androidLayerType="software" // This bypasses GPU initialization issues on the A34
+            style={{ flex: 1, opacity: 0.99 }}
             originWhitelist={['*']}
             allowsInlineMediaPlayback={true}
             mediaPlaybackRequiresUserAction={false}
