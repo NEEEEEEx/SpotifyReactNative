@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,14 @@ import { useLogin } from '../hooks/Uselogin';
 export const LoginScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { handleLogin, isLoading, error } = useLogin();
+  const { handleLogin, handleGuestLogin, isLoading, error } = useLogin();
+
+  useEffect(() => {
+    if (__DEV__) {
+      console.log('Dev mode: Auto-logging in...');
+      handleLogin('dev@test.com', 'password123');
+    }
+  }, []);
 
   return (
     <KeyboardAvoidingView
@@ -56,6 +63,13 @@ export const LoginScreen = () => {
           ) : (
             <Text style={styles.buttonText}>Sign in</Text>
           )}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.guestButton}
+          onPress={handleGuestLogin}
+          disabled={isLoading}
+        >
+          <Text style={styles.guestButtonText}>Continue as Guest</Text>
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -114,5 +128,15 @@ const styles = StyleSheet.create({
     color: '#DC2626',
     fontSize: 14,
     textAlign: 'center',
+  },
+  guestButton: {
+    marginTop: 16,
+    padding: 10,
+    alignItems: 'center',
+  },
+  guestButtonText: {
+    color: '#4F46E5',
+    fontSize: 15,
+    fontWeight: '500',
   },
 });

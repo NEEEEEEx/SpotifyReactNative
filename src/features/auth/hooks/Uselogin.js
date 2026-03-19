@@ -6,6 +6,28 @@ export const useLogin = () => {
   const [error, setError] = useState(null);
   const login = useAuthStore(s => s.login);
 
+  const handleGuestLogin = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      // Simulate API call for guest session
+      await new Promise(r => setTimeout(r, 800));
+
+      const guestToken = 'guest-jwt-token';
+      const guestUser = {
+        id: 'guest_001',
+        email: 'guest@example.com',
+        isGuest: true,
+      };
+
+      login(guestToken, guestUser);
+    } catch (err) {
+      setError('Guest access failed.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleLogin = async (email, password) => {
     setIsLoading(true);
     setError(null);
@@ -28,5 +50,5 @@ export const useLogin = () => {
     }
   };
 
-  return { handleLogin, isLoading, error };
+  return { handleLogin, handleGuestLogin, isLoading, error };
 };
