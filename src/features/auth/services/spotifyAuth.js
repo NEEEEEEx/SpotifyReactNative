@@ -11,6 +11,9 @@ const spotifyAuthConfig = {
     'user-read-private',
     'user-read-email',
     'user-modify-playback-state',
+    'playlist-read-private',
+    'playlist-read-collaborative',
+    'user-read-recently-played',
   ],
   serviceConfiguration: {
     authorizationEndpoint: 'https://accounts.spotify.com/authorize',
