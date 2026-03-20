@@ -10,6 +10,8 @@ import {
   Alert,
   Image,
   ActivityIndicator,
+  Modal,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
@@ -20,7 +22,11 @@ import { WebView } from 'react-native-webview';
 import { useAuthStore } from '../../../app/store/authStore';
 
 // Services
-import { fetchUserPlaylists, fetchRecentlyPlayed } from '../services/spotifyHomeService';
+import { 
+  fetchUserPlaylists, 
+  fetchRecentlyPlayed, 
+  fetchPlaylistTracks 
+} from '../services/spotifyHomeService';
 import { getAdFreeStreamUrl } from '../services/trackPlayer'; 
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
@@ -35,12 +41,10 @@ const C = {
 
 // ─── Helper Functions ─────────────────────────────────────────────────────────
 
-// ✅ NEW: Helper function to filter out duplicate objects based on a unique key
 const filterDuplicates = (array, keyExtractor) => {
   const seen = new Set();
   return array.filter(item => {
     const key = keyExtractor(item);
-    // If there's no key, or we've already seen it, skip it!
     if (!key || seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -81,6 +85,12 @@ export const HomeScreen = () => {
   const [playerLoading, setPlayerLoading] = useState(false);
   const [currentPlayingTitle, setCurrentPlayingTitle] = useState('');
 
+  // Modal & Playlist Details State
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedPlaylist, setSelectedPlaylist] = useState(null);
+  const [playlistTracks, setPlaylistTracks] = useState([]);
+  const [isLoadingModal, setIsLoadingModal] = useState(false);
+
   const user = useAuthStore(state => state.user);
   const token = useAuthStore(state => state.token);
   const logout = useAuthStore(state => state.logout);
@@ -105,11 +115,16 @@ export const HomeScreen = () => {
         ]);
 
         if (isMounted) {
-          // ✅ NEW: Filter out the duplicates before saving to state
+          // Filter duplicates from the raw API response
           const uniquePlaylists = filterDuplicates(playlistData || [], item => item.id);
           const uniqueRecent = filterDuplicates(recentData || [], item => item.track?.id);
 
-          setPlaylists(uniquePlaylists);
+          // FILTER: Only keep playlists where the owner's ID matches the current user's ID
+          const userOwnedPlaylists = uniquePlaylists.filter(
+            playlist => playlist.owner?.id === user?.id
+          );
+
+          setPlaylists(userOwnedPlaylists);
           setRecentTracks(uniqueRecent);
         }
       } catch (err) {
@@ -122,7 +137,7 @@ export const HomeScreen = () => {
     loadData();
 
     return () => { isMounted = false; };
-  }, [token]);
+  }, [token, user?.id]); // Added user?.id to trigger re-filter if user object loads late
 
   const handleLogout = () => {
     Alert.alert('Logout', 'Return to login screen?', [
@@ -156,11 +171,54 @@ export const HomeScreen = () => {
     }
   };
 
+  // Open the playlist modal and fetch its tracks using the service
+  const handleOpenPlaylist = async (playlist) => {
+    setSelectedPlaylist(playlist);
+    setModalVisible(true);
+    setIsLoadingModal(true);
+    setPlaylistTracks([]);
+
+    try {
+      const items = await fetchPlaylistTracks(token, playlist.id);
+      setPlaylistTracks(items);
+    } catch (error) {
+      console.error("Error loading playlist:", error);
+      Alert.alert("Error", "Could not load playlist tracks.");
+    } finally {
+      setIsLoadingModal(false);
+    }
+  };
+
   const headerBg = scrollY.interpolate({
     inputRange: [0, 80],
     outputRange: ['rgba(18,18,18,0)', 'rgba(18,18,18,1)'],
     extrapolate: 'clamp',
   });
+
+  // Render individual tracks in the Modal list
+  const renderPlaylistTrack = ({ item }) => {
+    const track = item.item; // Spotify wraps the track object in an 'item' wrapper
+    if (!track) return null;
+
+    return (
+      <TouchableOpacity 
+        style={styles.modalTrackItem} 
+        onPress={() => handlePlayTrack(track.name, track.artists?.[0]?.name)}
+      >
+        <Image 
+          source={{ uri: track.album?.images?.[0]?.url || 'https://via.placeholder.com/50' }} 
+          style={styles.modalTrackArt} 
+        />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.modalTrackName} numberOfLines={1}>{track.name}</Text>
+          <Text style={styles.modalTrackArtist} numberOfLines={1}>
+            {track.artists?.map(a => a.name).join(', ')}
+          </Text>
+        </View>
+        <MaterialIcons name="more-vert" size={20} color={C.muted} />
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -202,15 +260,15 @@ export const HomeScreen = () => {
               {playlists.length > 0 ? (
                 playlists.map(item => (
                   <AlbumCard 
-                    key={item.id} // ✅ Clean key! No more index fallbacks needed
+                    key={item.id}
                     title={item.name}
-                    sub={`By ${item.owner?.display_name || 'Spotify'}`}
+                    sub={`By ${item.owner?.display_name || 'You'}`}
                     imageUrl={item.images?.[0]?.url}
-                    onPress={() => handlePlayTrack(item.name, item.owner?.display_name)}
+                    onPress={() => handleOpenPlaylist(item)}
                   />
                 ))
               ) : (
-                <Text style={styles.emptyText}>No playlists found.</Text>
+                <Text style={styles.emptyText}>No owned playlists found.</Text>
               )}
             </ScrollView>
 
@@ -219,7 +277,7 @@ export const HomeScreen = () => {
               {recentTracks.length > 0 ? (
                 recentTracks.map(item => (
                   <AlbumCard 
-                    key={item.track?.id} // ✅ Clean key! Guaranteed to be unique now
+                    key={item.track?.id}
                     title={item.track?.name || 'Unknown Track'}
                     sub={item.track?.artists?.[0]?.name || 'Unknown Artist'}
                     imageUrl={item.track?.album?.images?.[0]?.url}
@@ -233,6 +291,66 @@ export const HomeScreen = () => {
           </>
         )}
       </Animated.ScrollView>
+
+      {/* Playlist Details Modal */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.modalBackButton}>
+              <MaterialIcons name="arrow-back" size={28} color={C.text} />
+            </TouchableOpacity>
+          </View>
+
+          {selectedPlaylist && (
+            <FlatList
+              data={playlistTracks}
+              keyExtractor={(item, index) => item.track?.id || index.toString()}
+              renderItem={renderPlaylistTrack}
+              contentContainerStyle={{ paddingBottom: 100 }}
+              ListHeaderComponent={
+                <View style={styles.modalHeroSection}>
+                  <Image 
+                    source={{ uri: selectedPlaylist.images?.[0]?.url }} 
+                    style={styles.modalCoverArt} 
+                  />
+                  <Text style={styles.modalPlaylistTitle}>{selectedPlaylist.name}</Text>
+                  
+                  <View style={styles.modalActionRow}>
+                    <View style={{ flexDirection: 'row', gap: 20, alignItems: 'center' }}>
+                      <MaterialIcons name="favorite-border" size={24} color={C.text} />
+                      <MaterialIcons name="download" size={24} color={C.text} />
+                      <MaterialIcons name="more-vert" size={24} color={C.text} />
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 15, alignItems: 'center' }}>
+                      <MaterialIcons name="shuffle" size={28} color={C.green} />
+                      <TouchableOpacity 
+                        style={styles.modalPlayBtn}
+                        onPress={() => {
+                          if (playlistTracks.length > 0) {
+                            const firstTrack = playlistTracks[0].track;
+                            handlePlayTrack(firstTrack.name, firstTrack.artists?.[0]?.name);
+                          }
+                        }}
+                      >
+                        <MaterialIcons name="play-arrow" size={32} color="#000" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  
+                  {isLoadingModal && (
+                    <ActivityIndicator size="large" color={C.green} style={{ marginTop: 20 }} />
+                  )}
+                </View>
+              }
+            />
+          )}
+        </SafeAreaView>
+      </Modal>
 
       {/* Floating Player Control */}
       {(audioUrl || playerLoading) && (
@@ -324,7 +442,7 @@ const styles = StyleSheet.create({
     bottom: 20,
     left: 16,
     right: 16,
-    backgroundColor: C.surface2,
+    backgroundColor: '#3E2723', 
     borderRadius: 8,
     padding: 12,
     flexDirection: 'row',
@@ -335,13 +453,26 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 5,
+    zIndex: 999, 
   },
   nowPlayingText: { color: C.text, fontSize: 14, fontWeight: '600', flex: 1 },
   stopButton: {
-    backgroundColor: C.danger,
     padding: 8,
-    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-  }
+  },
+
+  modalContainer: { flex: 1, backgroundColor: C.bg },
+  modalHeader: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10 },
+  modalBackButton: { width: 40, height: 40, justifyContent: 'center' },
+  modalHeroSection: { paddingHorizontal: 16, paddingBottom: 20 },
+  modalCoverArt: { width: 250, height: 250, alignSelf: 'center', marginTop: 20, marginBottom: 20, borderRadius: 4 },
+  modalPlaylistTitle: { color: C.text, fontSize: 28, fontWeight: 'bold', marginBottom: 15 },
+  modalActionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  modalPlayBtn: { width: 56, height: 56, borderRadius: 28, backgroundColor: C.green, justifyContent: 'center', alignItems: 'center' },
+  
+  modalTrackItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 16 },
+  modalTrackArt: { width: 50, height: 50, borderRadius: 4, marginRight: 15 },
+  modalTrackName: { color: C.text, fontSize: 16, fontWeight: '500', marginBottom: 4 },
+  modalTrackArtist: { color: C.muted, fontSize: 14 },
 });

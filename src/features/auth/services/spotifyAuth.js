@@ -11,6 +11,8 @@ const spotifyAuthConfig = {
     'user-read-private',
     'user-read-email',
     'user-modify-playback-state',
+    'user-library-read',
+    'user-follow-read',
     'playlist-read-private',
     'playlist-read-collaborative',
     'user-read-recently-played',

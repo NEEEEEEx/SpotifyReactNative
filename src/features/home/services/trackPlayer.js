@@ -37,9 +37,9 @@ export const getAdFreeStreamUrl = async (trackName, artistName) => {
 // Inside getYoutubeId (Only works reliably on a server)
 const getYoutubeId = async (trackName, artistName) => {
   try {
-    const query = encodeURIComponent(`${trackName} ${artistName} official audio`);
-    const url = `https://www.youtube.com/results?search_query=${query}`;
-
+    const query = encodeURIComponent(`${trackName} ${artistName}-song lyrics`);
+    console.log("DEBUG: Searching YouTube for:", query);
+    const url = `https://www.youtube.com/results?search_query=${query}&sp=EgIQAQ%253D%253D`;
     // Add a User-Agent to look more like a real browser
     const response = await fetch(url, {
       headers: {
