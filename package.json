@@ -11,6 +11,9 @@
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
+    "@react-native-vector-icons/common": "^12.4.2",
+    "@react-native-vector-icons/ionicons": "^12.4.3",
+    "@react-native-vector-icons/material-icons": "^12.4.3",
     "@react-native/new-app-screen": "0.84.0",
     "@react-navigation/bottom-tabs": "^7.15.5",
     "@react-navigation/native": "^7.1.33",
@@ -22,6 +25,7 @@
     "react-native": "0.84.0",
     "react-native-app-auth": "^8.1.0",
     "react-native-dotenv": "^3.4.11",
+    "react-native-linear-gradient": "^2.8.3",
     "react-native-safe-area-context": "^5.7.0",
     "react-native-screens": "^4.24.0",
     "react-native-webview": "^13.16.1",
