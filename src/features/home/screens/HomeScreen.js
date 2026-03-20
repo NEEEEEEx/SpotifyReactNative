@@ -7,10 +7,12 @@ import {
   TouchableOpacity,
   Animated,
   StatusBar,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons';
+import { useAuthStore } from '../../../app/store/authStore';
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
 const C = {
@@ -265,7 +267,18 @@ const MiniPlayer = () => {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export const HomeScreen = () => {
   const [activeFilter, setActiveFilter] = useState('All');
+  const logout = useAuthStore(state => state.logout);
   const scrollY = useRef(new Animated.Value(0)).current;
+  const handleLogout = () => {
+    Alert.alert('Logout', 'Return to login screen?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: () => logout(), // This flips the switch!
+      },
+    ]);
+  };
 
   const headerBg = scrollY.interpolate({
     inputRange: [0, 80],
@@ -284,7 +297,9 @@ export const HomeScreen = () => {
         <View style={{ flexDirection: 'row', gap: 15 }}>
           <MaterialIcons name="notifications-none" size={26} color={C.text} />
           <MaterialIcons name="history" size={26} color={C.text} />
-          <MaterialIcons name="settings" size={26} color={C.text} />
+          <TouchableOpacity onPress={handleLogout}>
+            <MaterialIcons name="settings" size={26} color={C.text} />
+          </TouchableOpacity>
         </View>
       </Animated.View>
 
