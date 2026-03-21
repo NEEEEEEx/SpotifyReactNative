@@ -18,12 +18,15 @@ const spotifyAuthConfig = {
     'user-read-recently-played',
   ],
   serviceConfiguration: {
-    authorizationEndpoint: 'https://accounts.spotify.com/authorize',
-    tokenEndpoint: 'https://accounts.spotify.com/api/token',
-  },
+  authorizationEndpoint: 'https://accounts.spotify.com/authorize',
+  tokenEndpoint: 'https://accounts.spotify.com/api/token',
+},
+dangerouslyAllowInsecureHttpRequests: true,
 };
 
 export const loginToSpotify = async () => {
+  console.log('Initiating Spotify login...');
   const result = await authorize(spotifyAuthConfig);
+  console.log(result);
   return result.accessToken;
 };
