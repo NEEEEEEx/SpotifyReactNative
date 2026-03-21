@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useRef } from 'react';
 import {
   View,
   Text,
@@ -29,7 +29,9 @@ const C = {
 // ─── Sub-Components ───────────────────────────────────────────────────────────
 const ProgressBar = ({ progress, duration, onSeek, disabled }) => {
   const barWidth = useRef(0);
-  const fillPct = `${Math.min(1, progress) * 100}%`;
+  // Ensure progress stays between 0 and 1, handle NaN
+  const safeProgress = isNaN(progress) ? 0 : Math.max(0, Math.min(1, progress));
+  const fillPct = `${safeProgress * 100}%`;
 
   return (
     <TouchableOpacity
@@ -37,7 +39,7 @@ const ProgressBar = ({ progress, duration, onSeek, disabled }) => {
       style={[styles.progressArea, disabled && { opacity: 0.5 }]}
       onLayout={e => (barWidth.current = e.nativeEvent.layout.width)}
       onPress={e => {
-        if (disabled) return;
+        if (disabled || barWidth.current === 0) return;
         const x = e.nativeEvent.locationX;
         onSeek((x / barWidth.current) * duration);
       }}
@@ -56,52 +58,41 @@ const CtrlBtn = ({ name, size = 28, color = C.text, onPress, disabled }) => (
   </TouchableOpacity>
 );
 
+// Improved formatter to handle empty states gracefully
 const formatTime = secs => {
+  if (!secs || isNaN(secs)) return '0:00';
   const m = Math.floor(secs / 60);
   const s = Math.floor(secs % 60);
   return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
-export const PlayerScreen = ({ onClose }) => {
+export const PlayerScreen = ({ 
+  onClose, 
+  // ─── NEW: Accepting real props from MiniPlayer ───
+  currentTime = 0, 
+  duration = 0, 
+  isPlaying = false, 
+  onTogglePlay, 
+  onSeek 
+}) => {
   const { 
     audioUrl, 
     currentPlayingTitle, 
     currentArtist, 
     currentArtwork, 
-    stopTrack,
     playerLoading 
   } = usePlayerStore();
 
-  const [liked, setLiked] = useState(false);
-  const [shuffled, setShuffled] = useState(false);
-  const [repeatMode, setRepeat] = useState(0); 
-  const [elapsed, setElapsed] = useState(0);
+  const [liked, setLiked] = React.useState(false);
+  const [shuffled, setShuffled] = React.useState(false);
+  const [repeatMode, setRepeat] = React.useState(0); 
   
-  // Create a boolean to check if everything is stopped
   const isStopped = !audioUrl && !playerLoading;
   
-  const fakeDuration = 180; 
-  const progress = isStopped ? 0 : (elapsed / fakeDuration);
-
-  // Timer logic
-  useEffect(() => {
-    if (isStopped) {
-      setElapsed(0);
-      return;
-    }
-    
-    setElapsed(0); 
-    const id = setInterval(() => {
-      setElapsed(e => (e >= fakeDuration ? 0 : e + 1));
-    }, 1000);
-    return () => clearInterval(id);
-  }, [currentPlayingTitle, isStopped]);
-
-  const handleStop = () => {
-    stopTrack();
-    // Intentionally NOT calling onClose() here so the user sees the empty state
-  };
+  // Calculate progress based on real duration
+  const safeDuration = duration > 0 ? duration : 1; 
+  const progress = isStopped ? 0 : (currentTime / safeDuration);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -153,10 +144,15 @@ export const PlayerScreen = ({ onClose }) => {
       </View>
 
       {/* Progress */}
-      <ProgressBar progress={progress} duration={fakeDuration} onSeek={setElapsed} disabled={isStopped} />
+      <ProgressBar 
+        progress={progress} 
+        duration={duration} 
+        onSeek={onSeek} // Use the injected seek function
+        disabled={isStopped || duration === 0} 
+      />
       <View style={styles.timeRow}>
-        <Text style={styles.timeText}>{formatTime(elapsed)}</Text>
-        <Text style={styles.timeText}>-{formatTime(fakeDuration - elapsed)}</Text>
+        <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
+        <Text style={styles.timeText}>-{formatTime(duration - currentTime)}</Text>
       </View>
 
       {/* Controls */}
@@ -164,13 +160,13 @@ export const PlayerScreen = ({ onClose }) => {
         <CtrlBtn name="shuffle" size={24} color={shuffled ? C.green : C.muted} onPress={() => setShuffled(!shuffled)} disabled={isStopped} />
         <CtrlBtn name="skip-previous" size={45} onPress={() => {}} disabled={isStopped} />
 
-        {/* Play/Stop Button */}
+        {/* Play/Pause Button - Replaced Stop logic */}
         <TouchableOpacity 
           style={[styles.playBtn, isStopped && { opacity: 0.5 }]} 
-          onPress={isStopped ? null : handleStop}
+          onPress={isStopped ? null : onTogglePlay}
           activeOpacity={isStopped ? 1 : 0.7}
         >
-          <MaterialIcons name={isStopped ? "play-arrow" : "stop"} size={40} color="#000" />
+          <MaterialIcons name={isPlaying && !isStopped ? "pause" : "play-arrow"} size={40} color="#000" />
         </TouchableOpacity>
 
         <CtrlBtn name="skip-next" size={45} onPress={() => {}} disabled={isStopped} />
@@ -186,7 +182,7 @@ export const PlayerScreen = ({ onClose }) => {
   );
 };
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// ─── Styles (unchanged except I left them here for completeness) ──────────────
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
   topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, paddingTop: 10 },
