@@ -4,6 +4,9 @@ import { RootNavigator } from './src/app/navigation/RootNavigator';
 import { enableScreens } from 'react-native-screens';
 import { COLORS } from './src/shared/theme/color';
 
+// 1. IMPORT THE GLOBAL PLAYER
+import { MiniPlayer } from './src/shared/components/MiniPlayer';
+
 enableScreens();
 
 // Define a custom theme using your COLORS
@@ -21,6 +24,9 @@ const SpotifyTheme = {
 const App = () => (
   <NavigationContainer theme={SpotifyTheme}>
     <RootNavigator />
+    
+    {/* 2. MOUNT THE GLOBAL PLAYER */}
+    <MiniPlayer />
   </NavigationContainer>
 );
 

@@ -16,10 +16,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons';
-import { WebView } from 'react-native-webview';
 
 // ─── Hooks & Services ─────────────────────────────────────────────────────────
 import { useAuthStore } from '../../../app/store/authStore';
+import usePlayerStore from '../../../app/store/playerStore'; // <-- ADDED GLOBAL STORE
+
 import { fetchUserLibrary, fetchAlbumTracks, fetchArtistTopTracks } from '../services/spotifyLibraryService';
 import { fetchPlaylistTracks } from '../../home/services/spotifyHomeService';
 import { getAdFreeStreamUrl } from '../../home/services/trackPlayer';
@@ -97,14 +98,12 @@ export const LibraryScreen = () => {
   const [modalTracks, setModalTracks] = useState([]);
   const [isLoadingModal, setIsLoadingModal] = useState(false);
 
-  // Audio Player State
-  const [audioUrl, setAudioUrl] = useState(null);
-  const [playerLoading, setPlayerLoading] = useState(false);
-  const [currentPlayingTitle, setCurrentPlayingTitle] = useState('');
-
-  // Stores
+  // Global Stores
   const token = useAuthStore(state => state.token);
   const user = useAuthStore(state => state.user);
+  
+  // Global Player Actions (Removed local state)
+  const { setLoading, playTrack, stopTrack } = usePlayerStore();
   
   const scrollY = useRef(new Animated.Value(0)).current;
 
@@ -135,7 +134,6 @@ export const LibraryScreen = () => {
         tracks = await fetchAlbumTracks(token, item.id);
       } else if (item.type === 'artist') {
         tracks = await fetchArtistTopTracks(token, item.id);
-        console.log("DEBUG: Fetched Artist Top Tracks:", tracks);
       }
       setModalTracks(tracks);
     } catch (error) {
@@ -145,26 +143,23 @@ export const LibraryScreen = () => {
     }
   };
 
-  // 3. Play Track Logic
-  const handlePlayTrack = async (trackName, artistName) => {
+  // 3. Play Track Logic (Using Global Store)
+  const handlePlayTrack = async (trackName, artistName,image) => {
     if (!trackName) return;
-    setPlayerLoading(true);
-    setAudioUrl(null); 
-    setCurrentPlayingTitle(trackName);
+    
+    setLoading(true); // Trigger global loading state
     
     try {
       const url = await getAdFreeStreamUrl(trackName, artistName || '');
       if (url) {
-        setAudioUrl(url);
+        playTrack(url, trackName,artistName,image); // Set global URL and title
       } else {
         Alert.alert("Error", "Could not find an audio stream.");
-        setCurrentPlayingTitle('');
+        stopTrack(); // Reset global player
       }
     } catch (error) {
       Alert.alert("Error", "Failed to play the track.");
-      setCurrentPlayingTitle('');
-    } finally {
-      setPlayerLoading(false);
+      stopTrack(); // Reset global player
     }
   };
 
@@ -181,7 +176,6 @@ export const LibraryScreen = () => {
   // Render Track inside Modal
   const renderModalTrack = ({ item }) => {
     // Playlist tracks wrap the track object in `item.track`, Albums/Artists return tracks directly
-    console.log("DEBUG: Rendering Modal Track Item:", item);
     const track = selectedItem?.type === 'playlist' ? item.item : item;
     
     if (!track) return null;
@@ -189,8 +183,9 @@ export const LibraryScreen = () => {
     return (
       <TouchableOpacity 
         style={styles.modalTrackItem} 
-        onPress={() => handlePlayTrack(track.name, track.artists?.[0]?.name)}
-      >
+        onPress={() => handlePlayTrack(track.name, track.artists?.[0]?.name,track.album?.images?.[0]?.url)}
+      > 
+
         <View style={{ flex: 1 }}>
           <Text style={styles.modalTrackName} numberOfLines={1}>{track.name}</Text>
           <Text style={styles.modalTrackArtist} numberOfLines={1}>
@@ -292,8 +287,8 @@ export const LibraryScreen = () => {
                         style={styles.modalPlayBtn}
                         onPress={() => {
                           if (modalTracks.length > 0) {
-                            const firstTrack = selectedItem.type === 'playlist' ? modalTracks[0].track : modalTracks[0];
-                            handlePlayTrack(firstTrack.name, firstTrack.artists?.[0]?.name);
+                            const firstTrack = selectedItem.type === 'playlist' ? modalTracks[0].item : modalTracks[0];
+                            handlePlayTrack(firstTrack.name, firstTrack.artists?.[0]?.name,firstTrack.album?.images?.[0]?.url);
                           }
                         }}
                       >
@@ -310,54 +305,7 @@ export const LibraryScreen = () => {
         </SafeAreaView>
       </Modal>
 
-      {/* Floating Player Control */}
-      {(audioUrl || playerLoading) && (
-        <View style={styles.floatingPlayer}>
-          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-            {playerLoading && <ActivityIndicator size="small" color={C.green} style={{ marginRight: 10 }} />}
-            <Text style={styles.nowPlayingText} numberOfLines={1}>
-              {playerLoading ? 'Loading stream...' : `Playing: ${currentPlayingTitle}`}
-            </Text>
-          </View>
-          <TouchableOpacity onPress={() => { setAudioUrl(null); setCurrentPlayingTitle(''); }} style={styles.stopButton}>
-            <MaterialIcons name="stop" size={24} color="#FFF" />
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* HIDDEN AUDIO PLAYER */}
-      {audioUrl && (
-        <View style={{ height: 0, width: 0, opacity: 0 }}>
-          <WebView
-            source={{ 
-              html: `
-                <html>
-                  <body>
-                    <audio id="player" autoplay playsinline>
-                      <source src="${audioUrl}" type="audio/mpeg">
-                    </audio>
-                    <script>
-                      var audio = document.getElementById('player');
-                      audio.play(); 
-                      audio.addEventListener('ended', () => { window.ReactNativeWebView.postMessage('ended'); });
-                    </script>
-                  </body>
-                </html>
-              ` 
-            }}
-            originWhitelist={['*']}
-            allowsInlineMediaPlayback={true}
-            mediaPlaybackRequiresUserAction={false}
-            javaScriptEnabled={true}
-            onMessage={(event) => {
-              if (event.nativeEvent.data === 'ended') {
-                setAudioUrl(null);
-                setCurrentPlayingTitle('');
-              }
-            }}
-          />
-        </View>
-      )}
+      {/* Floating Player and WebView have been completely removed from here! */}
     </SafeAreaView>
   );
 };
@@ -406,14 +354,4 @@ const styles = StyleSheet.create({
   modalTrackItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 16 },
   modalTrackName: { color: C.text, fontSize: 16, fontWeight: '500', marginBottom: 4 },
   modalTrackArtist: { color: C.muted, fontSize: 14 },
-
-  floatingPlayer: {
-    position: 'absolute', bottom: 20, left: 16, right: 16,
-    backgroundColor: '#3E2723', borderRadius: 8, padding: 12,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 4, elevation: 5, zIndex: 999, 
-  },
-  nowPlayingText: { color: C.text, fontSize: 14, fontWeight: '600', flex: 1 },
-  stopButton: { padding: 8, justifyContent: 'center', alignItems: 'center' },
 });

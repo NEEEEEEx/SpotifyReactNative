@@ -15,10 +15,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons';
-import { WebView } from 'react-native-webview';
 
 // ─── Hooks & Services ─────────────────────────────────────────────────────────
 import { useAuthStore } from '../../../app/store/authStore';
+import usePlayerStore from '../../../app/store/playerStore'; // <-- ADDED GLOBAL STORE
+
 import { getAdFreeStreamUrl } from '../../home/services/trackPlayer';
 import { searchTracks } from '../services/spotifySearchService';
 
@@ -123,14 +124,13 @@ export const SearchScreen = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  // Audio Player State
-  const [audioUrl, setAudioUrl] = useState(null);
-  const [playerLoading, setPlayerLoading] = useState(false);
-  const [currentPlayingTitle, setCurrentPlayingTitle] = useState('');
-
+  // Global Stores
   const token = useAuthStore(state => state.token);
+  
+  // Global Player Actions (Removed local state)
+  const { setLoading, playTrack, stopTrack } = usePlayerStore();
 
-  // Debounced Search Effect using the new service
+  // Debounced Search Effect using the service
   useEffect(() => {
     const delayDebounceFn = setTimeout(async () => {
       if (query.trim().length > 0 && token) {
@@ -154,27 +154,24 @@ export const SearchScreen = () => {
 
   const removeRecent = id => setRecents(r => r.filter(x => x.id !== id));
 
-  const handlePlayTrack = async (trackName, artistName) => {
+  // 3. Play Track Logic (Using Global Store)
+  const handlePlayTrack = async (trackName, artistName,image) => {
     if (!trackName) return;
     
-    setPlayerLoading(true);
-    setAudioUrl(null); 
-    setCurrentPlayingTitle(trackName);
+    setLoading(true); // Trigger global loading state
     
     try {
       const url = await getAdFreeStreamUrl(trackName, artistName || '');
       if (url) {
-        setAudioUrl(url);
+        playTrack(url, trackName,artistName,image); // Set global URL and title
       } else {
         Alert.alert("Error", "Could not find an audio stream.");
-        setCurrentPlayingTitle('');
+        stopTrack(); // Reset global player
       }
     } catch (error) {
       console.error("Play Track Error:", error);
       Alert.alert("Error", "Failed to play the track.");
-      setCurrentPlayingTitle('');
-    } finally {
-      setPlayerLoading(false);
+      stopTrack(); // Reset global player
     }
   };
 
@@ -186,7 +183,7 @@ export const SearchScreen = () => {
       <TouchableOpacity 
         key={track.id} 
         style={styles.trackResultItem}
-        onPress={() => handlePlayTrack(track.name, artistName)}
+        onPress={() => handlePlayTrack(track.name, artistName,track.album?.images?.[0]?.url)}
       >
         <Image 
           source={{ uri: imageUrl || 'https://via.placeholder.com/50' }} 
@@ -262,60 +259,7 @@ export const SearchScreen = () => {
         )}
       </ScrollView>
 
-      {/* Floating Player Control */}
-      {(audioUrl || playerLoading) && (
-        <View style={styles.floatingPlayer}>
-          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-            {playerLoading && <ActivityIndicator size="small" color={C.green} style={{ marginRight: 10 }} />}
-            <Text style={styles.nowPlayingText} numberOfLines={1}>
-              {playerLoading ? 'Loading stream...' : `Playing: ${currentPlayingTitle}`}
-            </Text>
-          </View>
-          <TouchableOpacity 
-            style={styles.stopButton}
-            onPress={() => {
-              setAudioUrl(null);
-              setCurrentPlayingTitle('');
-            }}
-          >
-            <MaterialIcons name="stop" size={24} color="#FFF" />
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* HIDDEN AUDIO PLAYER */}
-      {audioUrl && (
-        <View style={{ height: 0, width: 0, opacity: 0 }}>
-          <WebView
-            source={{ 
-              html: `
-                <html>
-                  <body>
-                    <audio id="player" autoplay playsinline>
-                      <source src="${audioUrl}" type="audio/mpeg">
-                    </audio>
-                    <script>
-                      var audio = document.getElementById('player');
-                      audio.play(); 
-                      audio.addEventListener('ended', () => { window.ReactNativeWebView.postMessage('ended'); });
-                    </script>
-                  </body>
-                </html>
-              ` 
-            }}
-            originWhitelist={['*']}
-            allowsInlineMediaPlayback={true}
-            mediaPlaybackRequiresUserAction={false}
-            javaScriptEnabled={true}
-            onMessage={(event) => {
-              if (event.nativeEvent.data === 'ended') {
-                setAudioUrl(null);
-                setCurrentPlayingTitle('');
-              }
-            }}
-          />
-        </View>
-      )}
+      {/* Floating Player and WebView have been completely removed from here! */}
     </SafeAreaView>
   );
 };
@@ -394,25 +338,4 @@ const styles = StyleSheet.create({
   trackResultInfo: { flex: 1 },
   trackResultName: { color: C.text, fontSize: 16, fontWeight: '500', marginBottom: 4 },
   trackResultArtist: { color: C.muted, fontSize: 14 },
-
-  floatingPlayer: {
-    position: 'absolute',
-    bottom: 20,
-    left: 16,
-    right: 16,
-    backgroundColor: '#3E2723', 
-    borderRadius: 8,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
-    zIndex: 999, 
-  },
-  nowPlayingText: { color: C.text, fontSize: 14, fontWeight: '600', flex: 1 },
-  stopButton: { padding: 8, justifyContent: 'center', alignItems: 'center' },
 });

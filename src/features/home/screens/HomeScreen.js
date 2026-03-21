@@ -16,10 +16,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons';
-import { WebView } from 'react-native-webview';
 
 // Hooks & Stores
 import { useAuthStore } from '../../../app/store/authStore';
+import usePlayerStore from '../../../app/store/playerStore'; // <-- ADDED GLOBAL STORE
 
 // Services
 import { 
@@ -80,20 +80,19 @@ export const HomeScreen = () => {
   const [recentTracks, setRecentTracks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Audio Player State
-  const [audioUrl, setAudioUrl] = useState(null);
-  const [playerLoading, setPlayerLoading] = useState(false);
-  const [currentPlayingTitle, setCurrentPlayingTitle] = useState('');
-
   // Modal & Playlist Details State
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedPlaylist, setSelectedPlaylist] = useState(null);
   const [playlistTracks, setPlaylistTracks] = useState([]);
   const [isLoadingModal, setIsLoadingModal] = useState(false);
 
+  // Global Stores
   const user = useAuthStore(state => state.user);
   const token = useAuthStore(state => state.token);
   const logout = useAuthStore(state => state.logout);
+  
+  // Global Player Actions (Removed local state)
+  const { setLoading, playTrack, stopTrack } = usePlayerStore();
 
   const scrollY = useRef(new Animated.Value(0)).current;
 
@@ -115,11 +114,9 @@ export const HomeScreen = () => {
         ]);
 
         if (isMounted) {
-          // Filter duplicates from the raw API response
           const uniquePlaylists = filterDuplicates(playlistData || [], item => item.id);
           const uniqueRecent = filterDuplicates(recentData || [], item => item.track?.id);
 
-          // FILTER: Only keep playlists where the owner's ID matches the current user's ID
           const userOwnedPlaylists = uniquePlaylists.filter(
             playlist => playlist.owner?.id === user?.id
           );
@@ -137,7 +134,7 @@ export const HomeScreen = () => {
     loadData();
 
     return () => { isMounted = false; };
-  }, [token, user?.id]); // Added user?.id to trigger re-filter if user object loads late
+  }, [token, user?.id]); 
 
   const handleLogout = () => {
     Alert.alert('Logout', 'Return to login screen?', [
@@ -146,32 +143,28 @@ export const HomeScreen = () => {
     ]);
   };
 
-  const handlePlayTrack = async (trackName, artistName) => {
+  // ─── UPDATED: Using Global Zustand Store ────────────────────────────────────
+  const handlePlayTrack = async (trackName, artistName,image) => {
     if (!trackName) return;
     
-    setPlayerLoading(true);
-    setAudioUrl(null); 
-    setCurrentPlayingTitle(trackName);
+    setLoading(true); // Trigger global loading state
     
     try {
       const url = await getAdFreeStreamUrl(trackName, artistName || '');
       
       if (url) {
-        setAudioUrl(url);
+        playTrack(url, trackName,artistName,image); // Set global URL and title
       } else {
         Alert.alert("Error", "Could not find an audio stream.");
-        setCurrentPlayingTitle('');
+        stopTrack(); // Reset global player
       }
     } catch (error) {
       console.error("Play Track Error:", error);
       Alert.alert("Error", "Failed to play the track.");
-      setCurrentPlayingTitle('');
-    } finally {
-      setPlayerLoading(false);
-    }
+      stopTrack(); // Reset global player
+    } 
   };
 
-  // Open the playlist modal and fetch its tracks using the service
   const handleOpenPlaylist = async (playlist) => {
     setSelectedPlaylist(playlist);
     setModalVisible(true);
@@ -195,15 +188,15 @@ export const HomeScreen = () => {
     extrapolate: 'clamp',
   });
 
-  // Render individual tracks in the Modal list
   const renderPlaylistTrack = ({ item }) => {
-    const track = item.item; // Spotify wraps the track object in an 'item' wrapper
+    const track = item.item; 
     if (!track) return null;
 
     return (
       <TouchableOpacity 
         style={styles.modalTrackItem} 
-        onPress={() => handlePlayTrack(track.name, track.artists?.[0]?.name)}
+        onPress={() => handlePlayTrack(track.name, track.artists?.[0]?.name,track.album?.images?.[0]?.url)}
+
       >
         <Image 
           source={{ uri: track.album?.images?.[0]?.url || 'https://via.placeholder.com/50' }} 
@@ -281,7 +274,7 @@ export const HomeScreen = () => {
                     title={item.track?.name || 'Unknown Track'}
                     sub={item.track?.artists?.[0]?.name || 'Unknown Artist'}
                     imageUrl={item.track?.album?.images?.[0]?.url}
-                    onPress={() => handlePlayTrack(item.track?.name, item.track?.artists?.[0]?.name)}
+                    onPress={() => handlePlayTrack(item.track?.name, item.track?.artists?.[0]?.name,item.track?.album?.images?.[0]?.url)}
                   />
                 ))
               ) : (
@@ -332,8 +325,8 @@ export const HomeScreen = () => {
                         style={styles.modalPlayBtn}
                         onPress={() => {
                           if (playlistTracks.length > 0) {
-                            const firstTrack = playlistTracks[0].track;
-                            handlePlayTrack(firstTrack.name, firstTrack.artists?.[0]?.name);
+                            const firstTrack = playlistTracks[0].item;
+                            handlePlayTrack(firstTrack.name, firstTrack.artists?.[0]?.name, firstTrack.album?.images?.[0]?.url);
                           }
                         }}
                       >
@@ -351,61 +344,10 @@ export const HomeScreen = () => {
           )}
         </SafeAreaView>
       </Modal>
-
-      {/* Floating Player Control */}
-      {(audioUrl || playerLoading) && (
-        <View style={styles.floatingPlayer}>
-          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-            {playerLoading && <ActivityIndicator size="small" color={C.green} style={{ marginRight: 10 }} />}
-            <Text style={styles.nowPlayingText} numberOfLines={1}>
-              {playerLoading ? 'Loading stream...' : `Playing: ${currentPlayingTitle}`}
-            </Text>
-          </View>
-          <TouchableOpacity 
-            style={styles.stopButton}
-            onPress={() => {
-              setAudioUrl(null);
-              setCurrentPlayingTitle('');
-            }}
-          >
-            <MaterialIcons name="stop" size={24} color="#FFF" />
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* HIDDEN AUDIO PLAYER */}
-      {audioUrl && (
-        <View style={{ height: 0, width: 0, opacity: 0 }}>
-          <WebView
-            source={{ 
-              html: `
-                <html>
-                  <body>
-                    <audio id="player" autoplay playsinline>
-                      <source src="${audioUrl}" type="audio/mpeg">
-                    </audio>
-                    <script>
-                      var audio = document.getElementById('player');
-                      audio.play(); 
-                      audio.addEventListener('ended', () => { window.ReactNativeWebView.postMessage('ended'); });
-                    </script>
-                  </body>
-                </html>
-              ` 
-            }}
-            originWhitelist={['*']}
-            allowsInlineMediaPlayback={true}
-            mediaPlaybackRequiresUserAction={false}
-            javaScriptEnabled={true}
-            onMessage={(event) => {
-              if (event.nativeEvent.data === 'ended') {
-                setAudioUrl(null);
-                setCurrentPlayingTitle('');
-              }
-            }}
-          />
-        </View>
-      )}
+      
+      {/* Notice: The Floating Player and WebView code has been completely removed 
+        from here, as it is now handled globally by the <MiniPlayer /> component!
+      */}
     </SafeAreaView>
   );
 };
@@ -436,31 +378,6 @@ const styles = StyleSheet.create({
   cardTitle: { color: C.text, fontSize: 13, fontWeight: '600' },
   cardSub: { color: C.muted, fontSize: 11 },
   emptyText: { color: C.muted, marginLeft: 16, fontSize: 14, fontStyle: 'italic' },
-  
-  floatingPlayer: {
-    position: 'absolute',
-    bottom: 20,
-    left: 16,
-    right: 16,
-    backgroundColor: '#3E2723', 
-    borderRadius: 8,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
-    zIndex: 999, 
-  },
-  nowPlayingText: { color: C.text, fontSize: 14, fontWeight: '600', flex: 1 },
-  stopButton: {
-    padding: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
 
   modalContainer: { flex: 1, backgroundColor: C.bg },
   modalHeader: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10 },

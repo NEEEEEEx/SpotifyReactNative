@@ -6,7 +6,6 @@ import { MaterialIcons } from '@react-native-vector-icons/material-icons';
 import { HomeScreen } from '../../features/home/screens/HomeScreen';
 import { SearchScreen } from '../../features/search/screens/SearchScreen';
 import { LibraryScreen } from '../../features/library/screens/LibraryScreen';
-import { PlayerScreen } from '../../features/player/screens/PlayerScreen';
 import { COLORS } from '../../shared/theme/color.js';
 
 const Tab = createBottomTabNavigator();
@@ -35,7 +34,6 @@ export const MainTabs = () => (
     <Tab.Screen name="Home" component={HomeScreen} />
     <Tab.Screen name="Search" component={SearchScreen} />
     <Tab.Screen name="Library" component={LibraryScreen} />
-    <Tab.Screen name="Player" component={PlayerScreen} />
   </Tab.Navigator>
 );
 

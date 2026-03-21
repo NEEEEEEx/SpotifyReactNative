@@ -1,4 +1,4 @@
-const RAPID_API_KEY = 'e6e84e1e38msh4d3c64c9125e8d1p15d71ejsndcbe35d51fd7'; // Replace this!
+const RAPID_API_KEY = '9b7a9f4e70msh5daae8532c79b23p1e2474jsn89811fbd60d5'; // Replace this!
 const RAPID_API_HOST = 'yt-all-stream-data.p.rapidapi.com';
 
 const commonHeaders = {
