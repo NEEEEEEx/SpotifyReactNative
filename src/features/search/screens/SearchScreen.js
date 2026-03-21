@@ -18,9 +18,8 @@ import { MaterialIcons } from '@react-native-vector-icons/material-icons';
 
 // ─── Hooks & Services ─────────────────────────────────────────────────────────
 import { useAuthStore } from '../../../app/store/authStore';
-import usePlayerStore from '../../../app/store/playerStore'; // <-- ADDED GLOBAL STORE
+import usePlayerStore from '../../../app/store/playerStore'; // <-- GLOBAL STORE
 
-import { getAdFreeStreamUrl } from '../../home/services/trackPlayer';
 import { searchTracks } from '../services/spotifySearchService';
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
@@ -127,8 +126,8 @@ export const SearchScreen = () => {
   // Global Stores
   const token = useAuthStore(state => state.token);
   
-  // Global Player Actions (Removed local state)
-  const { setLoading, playTrack, stopTrack } = usePlayerStore();
+  // ─── NEW: Extract playQueue from the global store ───
+  const { playQueue } = usePlayerStore();
 
   // Debounced Search Effect using the service
   useEffect(() => {
@@ -154,28 +153,8 @@ export const SearchScreen = () => {
 
   const removeRecent = id => setRecents(r => r.filter(x => x.id !== id));
 
-  // 3. Play Track Logic (Using Global Store)
-  const handlePlayTrack = async (trackName, artistName,image) => {
-    if (!trackName) return;
-    
-    setLoading(true); // Trigger global loading state
-    
-    try {
-      const url = await getAdFreeStreamUrl(trackName, artistName || '');
-      if (url) {
-        playTrack(url, trackName,artistName,image); // Set global URL and title
-      } else {
-        Alert.alert("Error", "Could not find an audio stream.");
-        stopTrack(); // Reset global player
-      }
-    } catch (error) {
-      console.error("Play Track Error:", error);
-      Alert.alert("Error", "Failed to play the track.");
-      stopTrack(); // Reset global player
-    }
-  };
-
-  const renderTrackResult = (track) => {
+  // ─── NEW: Pass the search results array and tapped index to the queue ───
+  const renderTrackResult = (track, index) => {
     const artistName = track.artists?.[0]?.name;
     const imageUrl = track.album?.images?.[0]?.url;
 
@@ -183,7 +162,7 @@ export const SearchScreen = () => {
       <TouchableOpacity 
         key={track.id} 
         style={styles.trackResultItem}
-        onPress={() => handlePlayTrack(track.name, artistName,track.album?.images?.[0]?.url)}
+        onPress={() => playQueue(searchResults, index)}
       >
         <Image 
           source={{ uri: imageUrl || 'https://via.placeholder.com/50' }} 
@@ -224,7 +203,7 @@ export const SearchScreen = () => {
             {isSearching ? (
               <ActivityIndicator size="large" color={C.green} style={{ marginTop: 40 }} />
             ) : searchResults.length > 0 ? (
-              searchResults.map(renderTrackResult)
+              searchResults.map((track, index) => renderTrackResult(track, index))
             ) : (
               <Text style={styles.emptyText}>No results found for "{query}"</Text>
             )}
@@ -258,8 +237,6 @@ export const SearchScreen = () => {
           </View>
         )}
       </ScrollView>
-
-      {/* Floating Player and WebView have been completely removed from here! */}
     </SafeAreaView>
   );
 };

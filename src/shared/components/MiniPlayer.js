@@ -27,18 +27,19 @@ export const MiniPlayer = () => {
     currentPlayingTitle, 
     currentArtist, 
     playerLoading, 
-    stopTrack 
+    stopTrack,
+    playNext // <-- EXTRACTED FROM STORE
   } = usePlayerStore();
   
   const [isPlayerOpen, setIsPlayerOpen] = useState(false);
 
-  // ─── NEW: Real-time Audio State ──────────────────────────────────────────────
+  // ─── Real-time Audio State ──────────────────────────────────────────────
   const webViewRef = useRef(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
 
-  // ─── NEW: WebView Controllers ────────────────────────────────────────────────
+  // ─── WebView Controllers ────────────────────────────────────────────────
   const togglePlayPause = () => {
     if (!webViewRef.current) return;
     const script = isPlaying 
@@ -81,7 +82,6 @@ export const MiniPlayer = () => {
             </View>
           </View>
 
-          {/* Replaced Stop with Play/Pause for the Mini Player, but kept the stop layout style */}
           <TouchableOpacity 
             style={styles.stopButton} 
             onPress={(e) => {
@@ -103,7 +103,6 @@ export const MiniPlayer = () => {
       >
         <PlayerScreen 
           onClose={() => setIsPlayerOpen(false)} 
-          // ─── NEW: Pass real state and controllers to UI ───
           currentTime={currentTime}
           duration={duration}
           isPlaying={isPlaying}
@@ -116,7 +115,7 @@ export const MiniPlayer = () => {
       {audioUrl && (
         <View style={{ height: 0, width: 0, opacity: 0 }} pointerEvents="none">
           <WebView
-            ref={webViewRef} // Attach ref for injectJavaScript
+            ref={webViewRef}
             source={{ 
               html: `
                 <html>
@@ -133,7 +132,6 @@ export const MiniPlayer = () => {
 
                       audio.play(); 
                       
-                      // ─── NEW: Added comprehensive event listeners ───
                       audio.addEventListener('timeupdate', () => {
                         sendToRN('progress', { currentTime: audio.currentTime, duration: audio.duration });
                       });
@@ -151,14 +149,12 @@ export const MiniPlayer = () => {
             mediaPlaybackRequiresUserAction={false}
             javaScriptEnabled={true}
             onMessage={(event) => {
-              // ─── NEW: Parse JSON messages and update React Native state ───
               try {
                 const data = JSON.parse(event.nativeEvent.data);
                 
                 switch(data.type) {
                   case 'progress':
                     setCurrentTime(data.currentTime || 0);
-                    // duration is NaN until audio metadata loads, handle gracefully
                     setDuration(isNaN(data.duration) ? 0 : data.duration); 
                     break;
                   case 'play':
@@ -168,9 +164,12 @@ export const MiniPlayer = () => {
                     setIsPlaying(false);
                     break;
                   case 'ended':
+                    setIsPlaying(false);
+                    playNext(); // <-- NEW: Automatically play next song
+                    break;
                   case 'error':
                     setIsPlaying(false);
-                    stopTrack();
+                    playNext(); // <-- NEW: Skip over broken streams automatically
                     break;
                 }
               } catch (e) {

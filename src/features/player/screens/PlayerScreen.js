@@ -69,7 +69,6 @@ const formatTime = secs => {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export const PlayerScreen = ({ 
   onClose, 
-  // ─── NEW: Accepting real props from MiniPlayer ───
   currentTime = 0, 
   duration = 0, 
   isPlaying = false, 
@@ -81,7 +80,9 @@ export const PlayerScreen = ({
     currentPlayingTitle, 
     currentArtist, 
     currentArtwork, 
-    playerLoading 
+    playerLoading,
+    playNext,      // <-- EXTRACTED NEXT CONTROL
+    playPrevious   // <-- EXTRACTED PREVIOUS CONTROL
   } = usePlayerStore();
 
   const [liked, setLiked] = React.useState(false);
@@ -147,7 +148,7 @@ export const PlayerScreen = ({
       <ProgressBar 
         progress={progress} 
         duration={duration} 
-        onSeek={onSeek} // Use the injected seek function
+        onSeek={onSeek} 
         disabled={isStopped || duration === 0} 
       />
       <View style={styles.timeRow}>
@@ -158,9 +159,11 @@ export const PlayerScreen = ({
       {/* Controls */}
       <View style={styles.controls}>
         <CtrlBtn name="shuffle" size={24} color={shuffled ? C.green : C.muted} onPress={() => setShuffled(!shuffled)} disabled={isStopped} />
-        <CtrlBtn name="skip-previous" size={45} onPress={() => {}} disabled={isStopped} />
+        
+        {/* Previous Track Button */}
+        <CtrlBtn name="skip-previous" size={45} onPress={playPrevious} disabled={isStopped} />
 
-        {/* Play/Pause Button - Replaced Stop logic */}
+        {/* Play/Pause Button */}
         <TouchableOpacity 
           style={[styles.playBtn, isStopped && { opacity: 0.5 }]} 
           onPress={isStopped ? null : onTogglePlay}
@@ -169,7 +172,9 @@ export const PlayerScreen = ({
           <MaterialIcons name={isPlaying && !isStopped ? "pause" : "play-arrow"} size={40} color="#000" />
         </TouchableOpacity>
 
-        <CtrlBtn name="skip-next" size={45} onPress={() => {}} disabled={isStopped} />
+        {/* Next Track Button */}
+        <CtrlBtn name="skip-next" size={45} onPress={playNext} disabled={isStopped} />
+        
         <CtrlBtn name={repeatMode === 2 ? 'repeat-one' : 'repeat'} size={24} color={repeatMode > 0 ? C.green : C.muted} onPress={() => setRepeat((repeatMode + 1) % 3)} disabled={isStopped} />
       </View>
 
@@ -182,7 +187,7 @@ export const PlayerScreen = ({
   );
 };
 
-// ─── Styles (unchanged except I left them here for completeness) ──────────────
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
   topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, paddingTop: 10 },

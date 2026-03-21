@@ -19,11 +19,10 @@ import { MaterialIcons } from '@react-native-vector-icons/material-icons';
 
 // ─── Hooks & Services ─────────────────────────────────────────────────────────
 import { useAuthStore } from '../../../app/store/authStore';
-import usePlayerStore from '../../../app/store/playerStore'; // <-- ADDED GLOBAL STORE
+import usePlayerStore from '../../../app/store/playerStore'; 
 
 import { fetchUserLibrary, fetchAlbumTracks, fetchArtistTopTracks } from '../services/spotifyLibraryService';
 import { fetchPlaylistTracks } from '../../home/services/spotifyHomeService';
-import { getAdFreeStreamUrl } from '../../home/services/trackPlayer';
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
 const C = {
@@ -102,8 +101,8 @@ export const LibraryScreen = () => {
   const token = useAuthStore(state => state.token);
   const user = useAuthStore(state => state.user);
   
-  // Global Player Actions (Removed local state)
-  const { setLoading, playTrack, stopTrack } = usePlayerStore();
+  // ─── NEW: Extract playQueue from the global store ───
+  const { playQueue } = usePlayerStore();
   
   const scrollY = useRef(new Animated.Value(0)).current;
 
@@ -143,26 +142,6 @@ export const LibraryScreen = () => {
     }
   };
 
-  // 3. Play Track Logic (Using Global Store)
-  const handlePlayTrack = async (trackName, artistName,image) => {
-    if (!trackName) return;
-    
-    setLoading(true); // Trigger global loading state
-    
-    try {
-      const url = await getAdFreeStreamUrl(trackName, artistName || '');
-      if (url) {
-        playTrack(url, trackName,artistName,image); // Set global URL and title
-      } else {
-        Alert.alert("Error", "Could not find an audio stream.");
-        stopTrack(); // Reset global player
-      }
-    } catch (error) {
-      Alert.alert("Error", "Failed to play the track.");
-      stopTrack(); // Reset global player
-    }
-  };
-
   const headerShadow = scrollY.interpolate({
     inputRange: [0, 20],
     outputRange: [0, 0.8],
@@ -173,8 +152,8 @@ export const LibraryScreen = () => {
     ? libraryData.filter(i => i.type === activeFilter.toLowerCase().slice(0, -1) || (activeFilter === 'Playlists' && i.type === 'playlist'))
     : libraryData;
 
-  // Render Track inside Modal
-  const renderModalTrack = ({ item }) => {
+  // ─── NEW: Accepting the index here to play the queue from the tapped song ───
+  const renderModalTrack = ({ item, index }) => {
     // Playlist tracks wrap the track object in `item.track`, Albums/Artists return tracks directly
     const track = selectedItem?.type === 'playlist' ? item.item : item;
     
@@ -183,9 +162,8 @@ export const LibraryScreen = () => {
     return (
       <TouchableOpacity 
         style={styles.modalTrackItem} 
-        onPress={() => handlePlayTrack(track.name, track.artists?.[0]?.name,track.album?.images?.[0]?.url)}
+        onPress={() => playQueue(modalTracks, index)}
       > 
-
         <View style={{ flex: 1 }}>
           <Text style={styles.modalTrackName} numberOfLines={1}>{track.name}</Text>
           <Text style={styles.modalTrackArtist} numberOfLines={1}>
@@ -287,8 +265,8 @@ export const LibraryScreen = () => {
                         style={styles.modalPlayBtn}
                         onPress={() => {
                           if (modalTracks.length > 0) {
-                            const firstTrack = selectedItem.type === 'playlist' ? modalTracks[0].item : modalTracks[0];
-                            handlePlayTrack(firstTrack.name, firstTrack.artists?.[0]?.name,firstTrack.album?.images?.[0]?.url);
+                            // ─── NEW: Starts the library queue from index 0 ───
+                            playQueue(modalTracks, 0);
                           }
                         }}
                       >
@@ -304,8 +282,6 @@ export const LibraryScreen = () => {
           )}
         </SafeAreaView>
       </Modal>
-
-      {/* Floating Player and WebView have been completely removed from here! */}
     </SafeAreaView>
   );
 };

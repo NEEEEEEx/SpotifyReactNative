@@ -19,7 +19,7 @@ import { MaterialIcons } from '@react-native-vector-icons/material-icons';
 
 // Hooks & Stores
 import { useAuthStore } from '../../../app/store/authStore';
-import usePlayerStore from '../../../app/store/playerStore'; // <-- ADDED GLOBAL STORE
+import usePlayerStore from '../../../app/store/playerStore'; 
 
 // Services
 import { 
@@ -27,7 +27,6 @@ import {
   fetchRecentlyPlayed, 
   fetchPlaylistTracks 
 } from '../services/spotifyHomeService';
-import { getAdFreeStreamUrl } from '../services/trackPlayer'; 
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
 const C = {
@@ -40,7 +39,6 @@ const C = {
 };
 
 // ─── Helper Functions ─────────────────────────────────────────────────────────
-
 const filterDuplicates = (array, keyExtractor) => {
   const seen = new Set();
   return array.filter(item => {
@@ -52,7 +50,6 @@ const filterDuplicates = (array, keyExtractor) => {
 };
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
-
 const AlbumCard = ({ title, sub, imageUrl, onPress, colors = ['#282828', '#121212'], size = 140 }) => (
   <View style={{ marginRight: 16, width: size }}>
     <TouchableOpacity activeOpacity={0.8} onPress={onPress}>
@@ -91,8 +88,7 @@ export const HomeScreen = () => {
   const token = useAuthStore(state => state.token);
   const logout = useAuthStore(state => state.logout);
   
-  // Global Player Actions (Removed local state)
-  const { setLoading, playTrack, stopTrack } = usePlayerStore();
+  const { playQueue } = usePlayerStore();
 
   const scrollY = useRef(new Animated.Value(0)).current;
 
@@ -143,28 +139,6 @@ export const HomeScreen = () => {
     ]);
   };
 
-  // ─── UPDATED: Using Global Zustand Store ────────────────────────────────────
-  const handlePlayTrack = async (trackName, artistName,image) => {
-    if (!trackName) return;
-    
-    setLoading(true); // Trigger global loading state
-    
-    try {
-      const url = await getAdFreeStreamUrl(trackName, artistName || '');
-      
-      if (url) {
-        playTrack(url, trackName,artistName,image); // Set global URL and title
-      } else {
-        Alert.alert("Error", "Could not find an audio stream.");
-        stopTrack(); // Reset global player
-      }
-    } catch (error) {
-      console.error("Play Track Error:", error);
-      Alert.alert("Error", "Failed to play the track.");
-      stopTrack(); // Reset global player
-    } 
-  };
-
   const handleOpenPlaylist = async (playlist) => {
     setSelectedPlaylist(playlist);
     setModalVisible(true);
@@ -188,15 +162,14 @@ export const HomeScreen = () => {
     extrapolate: 'clamp',
   });
 
-  const renderPlaylistTrack = ({ item }) => {
+  const renderPlaylistTrack = ({ item, index }) => {
     const track = item.item; 
     if (!track) return null;
 
     return (
       <TouchableOpacity 
         style={styles.modalTrackItem} 
-        onPress={() => handlePlayTrack(track.name, track.artists?.[0]?.name,track.album?.images?.[0]?.url)}
-
+        onPress={() => playQueue(playlistTracks, index)}
       >
         <Image 
           source={{ uri: track.album?.images?.[0]?.url || 'https://via.placeholder.com/50' }} 
@@ -268,13 +241,14 @@ export const HomeScreen = () => {
             <Text style={styles.sectionTitle}>Recently Played</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
               {recentTracks.length > 0 ? (
-                recentTracks.map(item => (
+                recentTracks.map((item) => (
                   <AlbumCard 
                     key={item.track?.id}
                     title={item.track?.name || 'Unknown Track'}
                     sub={item.track?.artists?.[0]?.name || 'Unknown Artist'}
                     imageUrl={item.track?.album?.images?.[0]?.url}
-                    onPress={() => handlePlayTrack(item.track?.name, item.track?.artists?.[0]?.name,item.track?.album?.images?.[0]?.url)}
+                    // ─── UPDATED: Passes only the tapped track into the queue array ───
+                    onPress={() => playQueue([item.track], 0)} 
                   />
                 ))
               ) : (
@@ -325,8 +299,7 @@ export const HomeScreen = () => {
                         style={styles.modalPlayBtn}
                         onPress={() => {
                           if (playlistTracks.length > 0) {
-                            const firstTrack = playlistTracks[0].item;
-                            handlePlayTrack(firstTrack.name, firstTrack.artists?.[0]?.name, firstTrack.album?.images?.[0]?.url);
+                            playQueue(playlistTracks, 0); 
                           }
                         }}
                       >
@@ -344,10 +317,6 @@ export const HomeScreen = () => {
           )}
         </SafeAreaView>
       </Modal>
-      
-      {/* Notice: The Floating Player and WebView code has been completely removed 
-        from here, as it is now handled globally by the <MiniPlayer /> component!
-      */}
     </SafeAreaView>
   );
 };
