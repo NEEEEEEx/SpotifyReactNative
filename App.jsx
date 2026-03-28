@@ -1,26 +1,33 @@
-import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
-import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+import React from 'react';
+import { NavigationContainer, DarkTheme } from '@react-navigation/native';
+import { RootNavigator } from './src/app/navigation/RootNavigator';
+import { enableScreens } from 'react-native-screens';
+import { COLORS } from './src/shared/theme/color';
 
-import Sample from './src/screens/sample';
+// 1. IMPORT THE GLOBAL PLAYER
+import { MiniPlayer } from './src/shared/components/MiniPlayer';
 
-function App() {
-  const isDarkMode = useColorScheme() === 'dark';
+enableScreens();
 
-  return (
-    <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <Sample />
-    </SafeAreaProvider>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+// Define a custom theme using your COLORS
+const SpotifyTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: COLORS.bgBase, // This kills the white background
+    card: COLORS.bgBase, // Changes header/nav background
+    text: COLORS.textMain, // Default text color
+    border: 'transparent', // Removes thin lines between screens
   },
-});
+};
+
+const App = () => (
+  <NavigationContainer theme={SpotifyTheme}>
+    <RootNavigator />
+    
+    {/* 2. MOUNT THE GLOBAL PLAYER */}
+    <MiniPlayer />
+  </NavigationContainer>
+);
 
 export default App;
